@@ -1,0 +1,36 @@
+/* mouse over link */
+a:hover {
+  color: red;
+  font-weight: bold;
+}
+.top
+{
+position:absolute;
+top:000px;
+left:0px;
+width:1610px;
+background-color:#b0e0e6;
+padding: 50px;
+font-family: "Lucida Console", "Courier New", monospace;
+}
+
+.left
+{
+top:148px;
+position:absolute;
+left:0px;
+width:400px;
+background-color:yellow;
+padding: 378px;
+font-family: "Times New Roman", Times, serif;
+}
+.right
+{
+top:148px;
+position:absolute;
+left:800px;
+width:880px;
+background-color:lightgrey;
+padding: 15px;
+font-family: "Times New Roman", Times, serif;
+}
