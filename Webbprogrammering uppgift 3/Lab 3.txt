@@ -1,0 +1,135 @@
+public int addBooking(String bookerId, String movieName, String perfDate) {
+    int bookingNumber = -1;
+    String selectBookedSeats = "SELECT COUNT(*) AS BookedSeats FROM Reservation " +
+                               "INNER JOIN Shows ON Reservation.ShowID = Shows.ShowID " +
+                               "WHERE Shows.MovieName = ? AND Shows.ShowDate = ?";
+    String selectMaxSeats = "SELECT NumSeatsAvailable FROM Shows " +
+                            "WHERE MovieName = ? AND ShowDate = ?";
+    String insertIntoBookingsSQL = "INSERT INTO Reservation (Username, ShowID) " +
+                                    "VALUES (?, ?)";
+    String lastInsertIdSQL = "SELECT LAST_INSERT_ID() AS LastInsertId";
+    String updateAvailableSeatsSQL = "UPDATE Shows SET NumSeatsAvailable = ? " +
+                                     "WHERE ShowID = ?";
+    
+    try (
+        PreparedStatement psBookedSeats = conn.prepareStatement(selectBookedSeats);
+        PreparedStatement psMaxSeats = conn.prepareStatement(selectMaxSeats);
+        PreparedStatement psInsertBooking = conn.prepareStatement(insertIntoBookingsSQL);
+        PreparedStatement psLastInsertId = conn.prepareStatement(lastInsertIdSQL);
+        PreparedStatement psUpdateSeats = conn.prepareStatement(updateAvailableSeatsSQL)
+    ) {
+        // Set transaction isolation level
+        conn.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+
+        // Begin transaction
+        conn.setAutoCommit(false);
+
+        // Set parameters for selectBookedSeats
+        psBookedSeats.setString(1, movieName);
+        psBookedSeats.setString(2, perfDate);
+
+        // Execute selectBookedSeats
+        ResultSet bookedSeatsResult = psBookedSeats.executeQuery();
+        int bookedSeats = 0;
+        if (bookedSeatsResult.next()) {
+            bookedSeats = bookedSeatsResult.getInt("BookedSeats");
+        }
+
+        // Set parameters for selectMaxSeats
+        psMaxSeats.setString(1, movieName);
+        psMaxSeats.setString(2, perfDate);
+
+        // Execute selectMaxSeats
+        ResultSet maxSeatsResult = psMaxSeats.executeQuery();
+        int maxSeats = 0;
+        if (maxSeatsResult.next()) {
+            maxSeats = maxSeatsResult.getInt("NumSeatsAvailable");
+        }
+
+        // Check if there are available seats
+        if (maxSeats - bookedSeats > 0) {
+            // Set parameters for insertIntoBookingsSQL
+            psInsertBooking.setString(1, bookerId);
+            psInsertBooking.setInt(2, showID);
+
+            // Execute insertIntoBookingsSQL
+            int rowsAffected = psInsertBooking.executeUpdate();
+            if (rowsAffected > 0) {
+                // Retrieve last insert ID
+                ResultSet lastInsertIdResult = psLastInsertId.executeQuery();
+                if (lastInsertIdResult.next()) {
+                    bookingNumber = lastInsertIdResult.getInt("LastInsertId");
+                }
+
+                // Update available seats
+                int updatedSeats = maxSeats - 1;
+                psUpdateSeats.setInt(1, updatedSeats);
+                psUpdateSeats.setInt(2, showID);
+                psUpdateSeats.executeUpdate();
+            }
+        }
+
+        // Commit transaction
+        conn.commit();
+        conn.setAutoCommit(true);
+    } catch (SQLException e) {
+        try {
+            // Rollback transaction
+            conn.rollback();
+            conn.setAutoCommit(true);
+            e.printStackTrace();
+        } catch (SQLException e1) {
+            e1.printStackTrace();
+        }
+    }
+    return bookingNumber;
+}
+
+
+
+----
+
+Associated for each user:
+
+public void updateList() {
+    System.out.println("Update booking list called.");
+
+    // Get the username of the currently logged-in user
+    String currentUser = CurrentUser.instance().getCurrentUserId();
+
+    // Retrieve reservations associated with the current user from the database
+    List<Reservation> bookings = db.getUserReservations(currentUser);
+
+    // Update the table view with the retrieved reservations
+    tableReservations.getItems().setAll(bookings);
+}
+
+
+public List<Reservation> getUserReservations(String username) {
+    List<Reservation> userReservations = new ArrayList<>();
+    try {
+        String query = "SELECT ReservationID, MovieName, ShowDate, TheatreName " +
+                       "FROM Reservation " +
+                       "INNER JOIN Shows ON Reservation.ShowID = Shows.ShowID " +
+                       "WHERE Username = ?";
+        PreparedStatement statement = conn.prepareStatement(query);
+        statement.setString(1, username);
+        ResultSet resultSet = statement.executeQuery();
+
+        while(resultSet.next()) {
+            int reservationID = resultSet.getInt("ReservationID");
+            String movieName = resultSet.getString("MovieName");
+            String showDate = resultSet.getString("ShowDate");
+            String theatreName = resultSet.getString("TheatreName");
+
+            Reservation reservation = new Reservation(reservationID, movieName, showDate, theatreName);
+            userReservations.add(reservation);
+        }
+
+        resultSet.close();
+        statement.close();
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return userReservations;
+}
